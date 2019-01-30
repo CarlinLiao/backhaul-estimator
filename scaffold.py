@@ -10,6 +10,17 @@ class BackhaulEstimator:
         # pass an object of the class FieldPrototype or its child classes
         self.field = field
     
+    def _get_radial_area(self, loc, radius):
+        '''
+        get list of indices that can be used to identify grid locations/nodes and their distance to the loc
+        '''
+
+        # get mask
+        inner = self.field._cmask(loc, radius)
+        outer = self.field._cmask(loc, 2*radius).difference_update(inner)
+        outer_dists = {k: self.field._get_dist(loc, k) for k in outer} # dict with outer as index and distance as value
+        return inner, outer, outer_dists
+    
     def _update_index(self, loc, cost, accepted, d=0):
         '''
         update estimated cost and weight at a specific index based on a resolved request's cost and acceptance status 
@@ -58,8 +69,8 @@ class BackhaulEstimator:
 
         # get radial areas around loc1 and loc2 and reconcile the overlap
         radius = cost/self._b
-        inner1, outer1, outer_dists1 = self.field._get_radial_area(loc1, radius)
-        inner2, outer2, outer_dists2 = self.field._get_radial_area(loc2, radius)
+        inner1, outer1, outer_dists1 = self._get_radial_area(loc1, radius)
+        inner2, outer2, outer_dists2 = self._get_radial_area(loc2, radius)
         inner = inner1.update(inner2)
         outer = outer1.update(outer2).difference_update(inner)
 
@@ -101,45 +112,41 @@ class Field2D():
 
     _cost_est = None
     _weights = None 
+    _res = 1
 
-    def __init__(self, xsize, ysize, init_cost=10):
+    def __init__(self, xsize, ysize, init_cost=10, res=1):
         '''
         initialize cost estimate grid and weight grid
         '''
         # TODO: tweakable resolution?
         self._cost_est = np.ones([xsize, ysize])*init_cost
         self._weights = np.ones([xsize, ysize])
+        self._res = res
     
     def _get_dist(self, loc1, loc2):
         '''
         get distance between two locs
         '''
         return ((loc2[0] - loc1[0])**2 + (loc2[1] - loc1[1]))**(1/2)
-
-    def _get_radial_area(self, loc, radius):
-        '''
-        get list of indices that can be used to identify grid locations/nodes and their distance to the loc
-        '''
-
-        inner_circle = 
-        x,y = np.where(circle_mask)
-        inner = set([(x[i],y[i]) for i in range(len(x))])
-
-        outer_circle = 
-        x,y = np.where(outer_circle)
-        outer = set([(x[i],y[i]) for i in range(len(x))]).difference_update(inner)
-
-        # inner_dists = set() # no need to keep distances of inner, since they're updated blanket
-        outer = set() # exclude indices in inner
-        outer_dists = None # dict with outer as index and distance as value
-        return inner, outer, outer_dists
     
-    def _set_loc(self, loc, cost_est, weight):
+    def _cmask(self, loc, radius):
+        '''
+        get all IDs within the given radius (after normalization to indices) of loc
+        '''
+        radius_normalized = radius/self._res
+        a,b = loc
+        nx,ny = self._weights.shape
+        y,x = np.ogrid[-a:nx-a,-b:ny-b]
+        x,y = np.where(x*x + y*y <= radius_normalized*radius_normalized)
+        return set([(x[i],y[i]) for i in range(len(x))])
+    
+    def _set_loc(self, loc, cost_est=None, weight=None):
         '''
         set the cost estimate and weight at a location to new values
         '''
         pass
-    
 
-
-        
+        if cost_est:
+            self._cost_est[loc] = cost_est
+        if weight:
+            self._weights[loc] = weight
